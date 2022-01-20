@@ -1,3 +1,3 @@
 #include "WifiConfiguration.h"
-extern WifiConfiguration WIFI_CONFIGURATION;
-extern int UTC_OFFSET;
+extern const WifiConfiguration WIFI_CONFIGURATION;
+extern const int UTC_OFFSET;
