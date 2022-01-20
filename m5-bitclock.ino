@@ -229,7 +229,7 @@ void retrieveNTPTime() {
 
 void retrieveMetrics() {
 
-  const WifiConfiguration homeWifi = { "rixel", "pumpitup" };
+  const WifiConfiguration homeWifi = { "bibbity", "flibbity " };
   const WifiConfiguration hotspot = { "flibbity", "bibbity" };
 
   HTTPClient http;
