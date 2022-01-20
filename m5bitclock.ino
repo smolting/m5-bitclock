@@ -229,15 +229,18 @@ void retrieveNTPTime() {
 
 void retrieveMetrics() {
 
-  const WifiConfiguration home = { "SSID", "thepasswordispassword" };
+  const WifiConfiguration homeWifi = { "SSID_HERE", "PASSWORD_HERE" }
+  const WifiConfiguration hotspot = { "SSID_HERE", "PASSWORD_HERE" }
+
   HTTPClient http;
   uint8_t wifi_run_status;
 
   uint32_t connect_timeout = millis() + 10000;
-  WiFi.begin(home.ssid, home.password);
+  WiFi.begin(homeWifi.ssid, homeWifi.password);
   while((WiFi.status() != WL_CONNECTED) && (millis() < connect_timeout)){
       delay(500);
   }
+  
   if(WiFi.status() == WL_CONNECTED) {
     
     http.setReuse(true);
@@ -324,4 +327,3 @@ void loop()
 {
 
 }
-

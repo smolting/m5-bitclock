@@ -1,5 +1,5 @@
-#include <Arduino.h>
 #include "M5CoreInk.h"
+#include <Arduino.h>
 
 extern const unsigned char Block16x18[];
 
