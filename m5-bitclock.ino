@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "preferences.h"
 
 enum AppStateSource { NEW_STATE, PREFERENCES };
 
@@ -21,15 +22,8 @@ struct AppStateStruct {
 
 typedef struct AppStateStruct AppState;
 
-typedef struct {
-  char ssid[33];
-  char password[64];
-} WifiConfiguration;
-
 Ink_Sprite InkPageSprite(&M5.M5Ink);
 Preferences preferences;
-
-
 
 void drawImageToSprite(int posX,int posY, image_t* imagePtr, Ink_Sprite* sprite)
 {
@@ -218,7 +212,7 @@ void setRTCTime(tm *timeinfo){
 }
 
 void retrieveNTPTime() {
-  configTime(3600*-7, 3600, "us.pool.ntp.org");
+  configTime(3600*UTC_OFFSET, 3600, "us.pool.ntp.org");
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     Serial.println("Failed to obtain time");
@@ -229,14 +223,11 @@ void retrieveNTPTime() {
 
 void retrieveMetrics() {
 
-  const WifiConfiguration homeWifi = { "SSID_HERE", "PASSWORD_HERE" }
-  const WifiConfiguration hotspot = { "SSID_HERE", "PASSWORD_HERE" }
-
   HTTPClient http;
   uint8_t wifi_run_status;
 
   uint32_t connect_timeout = millis() + 10000;
-  WiFi.begin(homeWifi.ssid, homeWifi.password);
+  WiFi.begin(WIFI_CONFIGURATION.ssid, WIFI_CONFIGURATION.password);
   while((WiFi.status() != WL_CONNECTED) && (millis() < connect_timeout)){
       delay(500);
   }
