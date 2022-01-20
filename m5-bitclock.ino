@@ -229,8 +229,8 @@ void retrieveNTPTime() {
 
 void retrieveMetrics() {
 
-  const WifiConfiguration homeWifi = { "SSID_HERE", "PASSWORD_HERE" }
-  const WifiConfiguration hotspot = { "SSID_HERE", "PASSWORD_HERE" }
+  const WifiConfiguration homeWifi = { "rixel", "pumpitup" };
+  const WifiConfiguration hotspot = { "flibbity", "bibbity" };
 
   HTTPClient http;
   uint8_t wifi_run_status;
