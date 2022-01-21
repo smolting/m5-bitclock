@@ -7,6 +7,9 @@
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFi.h>
+#include <driver/rtc_io.h>
+
+RTC_DATA_ATTR int bootCount = 0;
 
 enum AppStateSource { NEW_STATE, PREFERENCES };
 
@@ -68,8 +71,10 @@ void drawDateTime() {
 
   char displayDate[7]; // 01 Mar 01:01
   char displayTime[6];
+
   sprintf(displayDate, "%02i %s", RTCdate.Date, ch_arr[RTCdate.Month - 1]);
   sprintf(displayTime, "%02i:%02i", RTCtime.Hours, RTCtime.Minutes);
+
   InkPageSprite.drawString(5, 5, displayDate);
   InkPageSprite.drawString(80, 5, displayTime);
 }
@@ -77,8 +82,8 @@ void drawDateTime() {
 float getBatteryVoltage() {
   analogSetPinAttenuation(35, ADC_11db);
   esp_adc_cal_characteristics_t *adc_chars =
-      (esp_adc_cal_characteristics_t *)calloc(
-          1, sizeof(esp_adc_cal_characteristics_t));
+    (esp_adc_cal_characteristics_t *)calloc(
+      1, sizeof(esp_adc_cal_characteristics_t));
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 3600,
                            adc_chars);
   uint16_t adcValue = analogRead(35);
@@ -91,13 +96,13 @@ void displayBattery(Ink_Sprite *sprite) {
   float batteryVoltage1 = getBatteryVoltage();
   char voltageDiagnostic[32];
   sprite->drawString(
-      5, 5, "                                                         ");
+    5, 5, "                                                         ");
 
   int bp = (batteryVoltage1 < 3.2) ? 0 : (batteryVoltage1 - 3.2) * 100;
   sprintf(voltageDiagnostic, "%.5g: %i", batteryVoltage1, bp);
 
   uint8_t batteryIconIndex =
-      bp >= 71 ? 4 : bp >= 51 ? 3 : bp >= 31 ? 2 : bp >= 11 ? 1 : 0;
+    bp >= 71 ? 4 : bp >= 51 ? 3 : bp >= 31 ? 2 : bp >= 11 ? 1 : 0;
 
   drawImageToSprite(165, 4, &battery[batteryIconIndex], sprite);
 }
@@ -135,8 +140,8 @@ void getPreference(const char *key, char *buf, uint8_t len, bool *exists) {
 void retrievePrice(HTTPClient *http, char *priceBuf) {
 
   http->begin(
-      "https://api.coingecko.com/api/v3/simple/"
-      "price?ids=bitcoin&vs_currencies=usd&include_last_updated_at=true");
+    "https://api.coingecko.com/api/v3/simple/"
+    "price?ids=bitcoin&vs_currencies=usd&include_last_updated_at=true");
   int httpCode = http->GET();
   if (httpCode > 0) { // httpCode will be negative on error.
 
@@ -192,9 +197,6 @@ void retrieveNextBlockFee(HTTPClient *http, char *nextBlockFee) {
       DynamicJsonDocument doc(128);
       deserializeJson(doc, http->getStream());
       int fastestFee = doc["fastestFee"];
-      Serial.printf("Fastest fee: %i", fastestFee);
-
-      Serial.printf("Festest fee padded: %03d", fastestFee);
       sprintf(nextBlockFee, "%03d", fastestFee);
     }
   }
@@ -311,6 +313,12 @@ void setup() {
   draw_static_images();
 
   retrieveMetrics();
+
+  bootCount = bootCount + 1;
+  char displayBootCount[7];
+  sprintf(displayBootCount, "%i", bootCount);
+  InkPageSprite.drawString(135, 5, displayBootCount);
+
   InkPageSprite.pushSprite();
 
   M5.shutdown(600);
