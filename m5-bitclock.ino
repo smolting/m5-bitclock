@@ -67,7 +67,8 @@ void drawDateTime() {
   M5.rtc.GetDate(&RTCdate);
 
   char ch_arr[12][4] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+                       };
 
   char displayDate[7]; // 01 Mar 01:01
   char displayTime[6];
@@ -303,7 +304,9 @@ void draw_static_images() {
   InkPageSprite.FillRect(101, 151, 1, 38, 0);
 }
 
-void draw_status_bar(const char *dateTime) { displayBattery(&InkPageSprite); }
+void draw_status_bar(const char *dateTime) {
+  displayBattery(&InkPageSprite);
+}
 
 void setup() {
   initialize();
@@ -324,4 +327,5 @@ void setup() {
   M5.shutdown(600);
 }
 
-void loop() {}
+void loop() {
+}
