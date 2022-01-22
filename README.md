@@ -1,8 +1,8 @@
+# M5-bitclock
+
+A teensy tiny **wireless bitcoin metrics ticker** that will lasts for days on battery
+
 ![m5-bitclock](docs/pictures/m5-bitclock.png)
-
-*Tiny bitcoin metrics ticker that will lasts for days on battery*
-
-m5-bitclock is a 
 
 ## Feature Overview
 
