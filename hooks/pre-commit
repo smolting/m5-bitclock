@@ -1,0 +1,23 @@
+#!/bin/bash
+
+echo "PRE-COMMIT: start"
+
+lineNumbers=()
+lines=()
+while read -r line ; do
+	lineNumber=$(cut -d ":" -f1 <<< $line)
+	line=$(cut -d ":" -f2 <<< $line)
+	lineNumbers+=($lineNumber)
+	lines+=("$line")
+	echo "PRE-COMMIT: $line"
+	sed -i "$lineNumber s/\(const WifiConfiguration .\+ =\) \(.*\)/\1 { \"SSID_HERE\", \"PASSWORD_HERE\" };/" preferences.c
+done < <(grep -Eon "\s*const WifiConfiguration (.+)" preferences.c)
+
+git add preferences.c
+
+for i in "${!lines[@]}"; do 
+  sed -i "${lineNumbers[$i]} s/.*/${lines[$i]}/" preferences.c
+done
+
+# find . -regextype posix-extended -regex '^.*\.(c|cpp|h|hpp|ino)' | xargs clang-format -i
+astyle --suffix=none --project=./.astylerc --recursive ./*.c,*.cpp,*.ino,*.h,*.hpp
