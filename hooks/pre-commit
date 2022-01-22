@@ -19,5 +19,4 @@ for i in "${!lines[@]}"; do
   sed -i "${lineNumbers[$i]} s/.*/${lines[$i]}/" preferences.c
 done
 
-# find . -regextype posix-extended -regex '^.*\.(c|cpp|h|hpp|ino)' | xargs clang-format -i
 astyle --suffix=none --project=./.astylerc --recursive ./*.c,*.cpp,*.ino,*.h,*.hpp
