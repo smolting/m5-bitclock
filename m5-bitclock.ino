@@ -323,8 +323,10 @@ void setup() {
   InkPageSprite.drawString(135, 5, displayBootCount);
 
   InkPageSprite.pushSprite();
-
-  M5.shutdown(600);
+  
+  digitalWrite(LED_EXT_PIN, HIGH);
+  esp_sleep_enable_timer_wakeup(600 * 1000000);
+  esp_deep_sleep_start();
 }
 
 void loop() {
