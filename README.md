@@ -42,7 +42,7 @@ To flash the software to the CoreInk, you will need:
    * ![libraries-m5stack](docs/pictures/library-manager-m5stack.png)
 
 4. Connect the M5 CoreInk to a USB port, and configure the correct USB port:
-   * **Tools Menu** -> **Board: (XXX)** -> **M5Stack Arduino** -> **M5Stack-CoreInk**
+   * **Tools Menu** -> **Port: (XXX)** -> **dev/ttyUSB0** -> **M5Stack-CoreInk**
    * ![ports-menu](docs/pictures/port-menu.png)
 
 5. Upload the software:
