@@ -10,7 +10,7 @@ A teensy tiny **wireless bitcoin metrics ticker** that will lasts for days on ba
 * **Power efficient** - epaper display (EPD) allows efficient use of the battery; unit lasts for days on a single charge!
 
 ## Hardware Requirements
-* **[M5 Stack CoreInk Development Kit](https://shop.m5stack.com/products/m5stack-esp32-core-ink-development-kit1-54-elnk-display)** - CoreInk is an IoT prototyping device with WiFi, Bluetooth, a real-time clock, and a 1.5" electronic paper display
+* **[M5 Stack CoreInk Development Kit (~$35 USD)](https://shop.m5stack.com/products/m5stack-esp32-core-ink-development-kit1-54-elnk-display)** - CoreInk is an IoT prototyping device with WiFi, Bluetooth, a real-time clock, and a 1.5" electronic paper display
 
 ## Software Requirements
 To flash the software to the CoreInk, you will need:
