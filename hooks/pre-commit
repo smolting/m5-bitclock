@@ -1,7 +1,5 @@
 #!/bin/bash
 
-echo "PRE-COMMIT: start"
-
 lineNumbers=()
 lines=()
 while read -r line ; do

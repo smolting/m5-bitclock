@@ -9,8 +9,6 @@
 #include <WiFi.h>
 #include <driver/rtc_io.h>
 
-RTC_DATA_ATTR int bootCount = 0;
-
 enum AppStateSource { NEW_STATE, PREFERENCES };
 
 struct AppStateStruct {
@@ -311,19 +309,9 @@ void draw_status_bar(const char *dateTime) {
 void setup() {
   initialize();
   AppState state = get_app_state(&InkPageSprite);
-
-  draw_status_bar("15 Jan  22:38");
   draw_static_images();
-
   retrieveMetrics();
-
-  bootCount = bootCount + 1;
-  char displayBootCount[7];
-  sprintf(displayBootCount, "%i", bootCount);
-  InkPageSprite.drawString(135, 5, displayBootCount);
-
   InkPageSprite.pushSprite();
-
   M5.shutdown(600);
 }
 
