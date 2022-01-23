@@ -17,12 +17,13 @@ To flash the software to the CoreInk, you will need:
 
 * **[Arduino IDE](https://www.arduino.cc/en/Main/Software)**
 
-## Installation Instructions 
+## Installation Instructions (estimated time ~30 minutes)
 
-(Navigate [to the M5 CoreInk Quick Start Guide](https://docs.m5stack.com/en/quick_start/coreink/arduino) for detailed instructions.)
+(Navigate [to the M5 CoreInk Arduino Quick Start Guide](https://docs.m5stack.com/en/quick_start/coreink/arduino) for detailed environment setup instructions)
 
-1. Install the Arduino IDE (see software requirements)
-2. Configure the Arduino IDE boards manager:
+1. Install Arduino IDE (see software requirements)
+
+2. Open Arduino IDE, and configure the boards manager:
    
    * In the Arduino IDE, navigate to **File Menu** -> **Preferences**
   
@@ -34,6 +35,7 @@ To flash the software to the CoreInk, you will need:
    * ![boards-manager](docs/pictures/boards-manager-m5stack.png)
    * Set the board configuration: **Tools Menu** -> **Board: (XXX)** -> **M5Stack Arduino** -> **M5Stack-CoreInk** 
    * ![boards-menu](docs/pictures/boards-menu.png)
+  
 3. Install the **M5-CoreInk** Libraries:
    * **Sketch Menu** -> **Include Library** -> **Manage Libraries** 
    * Search for "**`CoreInk`**" and install the **M5-CoreInk** library (by Hades) 
@@ -41,12 +43,27 @@ To flash the software to the CoreInk, you will need:
    * Search for "**`M5 Stack`**" and install the **M5Stack** library (by M5) 
    * ![libraries-m5stack](docs/pictures/library-manager-m5stack.png)
 
-4. Connect the M5 CoreInk to a USB port, and configure the correct USB port:
+4. Download and extract the latest release of this source from [here](https://github.com/smolting/m5-bitclock/releases)
+   
+
+5. In Arduino IDE, open m5-bitclock.ino sketch in the directory you extracted from the release archive (**File** -> **Open**)
+
+6. The Arduino IDE will display a tab for every source file. Locate the tab for `preferences.c`, and in it, change the SSID and password values to reflect the WiFi network you would like the m5-bitclock to connect to:
+   ```
+   const WifiConfiguration WIFI_CONFIGURATION = { "MyHomeWifiRouter", "p@55w0rd" };
+   ```
+
+7. Connect the M5 CoreInk to a USB port, and configure the correct USB port:
    * **Tools Menu** -> **Port: (XXX)** -> **dev/ttyUSB0** -> **M5Stack-CoreInk**
    * ![ports-menu](docs/pictures/port-menu.png)
 
-5. Upload the software:
+8. Upload the software:
    * Using the menu item: **Sketch Menu** -> **Upload** 
    * ![menu-upload](docs/pictures/sketch-upload.png)
    * or with the **Upload** button: 
    * ![upload-button](docs/pictures/upload-button.png)
+
+## Contributing
+
+See **Installation Instructions** for development environment setup
+

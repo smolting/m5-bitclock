@@ -2,3 +2,5 @@
 .vscode/arduino.json
 .clang-format
 **/*.orig
+create-release.sh
+m5-bitclock.tar.gz
