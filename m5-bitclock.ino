@@ -8,18 +8,17 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <driver/rtc_io.h>
+#include <Preferences.h>
 
 enum AppStateSource { NEW_STATE, PREFERENCES };
 
 struct AppStateStruct {
   AppStateSource source;
-  char dateTime[12];
-  char battery[6];
   char price[11];
   char chainTip[8];
   char mempoolSize[5];
-  char medianFee[5];
-} DefaultAppState = {NEW_STATE, "", "", "", "", "", ""};
+  char nextBlockFee[5];
+} DefaultAppState = {NEW_STATE, "", "", "", ""};
 
 typedef struct AppStateStruct AppState;
 
@@ -106,7 +105,7 @@ void displayBattery(Ink_Sprite *sprite) {
   drawImageToSprite(165, 4, &battery[batteryIconIndex], sprite);
 }
 
-void initialize() {
+bool initialize() {
 
   Wire1.begin(21, 22);
   uint8_t rtcData = M5.rtc.ReadReg(0x01);
@@ -125,13 +124,19 @@ void initialize() {
   if (InkPageSprite.creatSprite(0, 0, 200, 200, true) != 0) {
     Serial.printf("Ink Sprite create faild");
   }
-
-  M5.M5Ink.clear();
+  return ((rtcData & 0b00000100) == 0b00000100);
 }
 
-void getPreference(const char *key, char *buf, uint8_t len, bool *exists) {
+void getPreferenceString(const char *key, char *buf, char *defaultValue, uint8_t len, bool *exists) {
   if (preferences.isKey(key)) {
-    preferences.getString("lastUpdateDate", "").toCharArray(buf, len);
+    preferences.getString(key, defaultValue).toCharArray(buf, len);
+    *exists = true;
+  }
+}
+
+void getPreferenceInt(const char *key, int *value, int defaultValue, uint8_t len, bool *exists) {
+  if (preferences.isKey(key)) {
+    *value = preferences.getInt(key, defaultValue);
     *exists = true;
   }
 }
@@ -151,11 +156,27 @@ void retrievePrice(HTTPClient *http, char *priceBuf) {
       int usd_index_end = response.indexOf(",", usd_index);
 
       String parsedString = response.substring(usd_index, usd_index_end);
-      preferences.putString("lastPrice", parsedString);
+
       parsedString.toCharArray(priceBuf, 256);
     }
   }
   http->end();
+}
+
+void drawPrice(char* price) {
+  drawNumeric(price, 32, 87, seven_segment_26x42, &InkPageSprite, 6);
+}
+
+void drawBlockHeight(char* blockHeight) {
+  drawNumeric(blockHeight, 40, 33, seven_segment_20x32, &InkPageSprite, 7);
+}
+
+void drawMempoolSize(char* mempoolSize) {
+  drawNumeric(mempoolSize, 3, 154, seven_segment_20x32, &InkPageSprite, 3);
+}
+
+void drawNextBlockFee(char* nextBlockFee) {
+  drawNumeric(nextBlockFee, 105, 154, seven_segment_20x32, &InkPageSprite, 3);
 }
 
 void retrieveBlockHeight(HTTPClient *http, char *chainTipBuf) {
@@ -227,8 +248,9 @@ void retrieveNTPTime() {
   setRTCTime(&timeinfo);
 }
 
-void retrieveMetrics() {
+AppState retrieveMetrics() {
 
+  AppState retrievedAppState;
   HTTPClient http;
   uint8_t wifi_run_status;
 
@@ -242,24 +264,20 @@ void retrieveMetrics() {
 
     http.setReuse(true);
 
-    char priceBuf[18];
-    retrievePrice(&http, priceBuf);
-    drawNumeric(priceBuf, 32, 87, seven_segment_26x42, &InkPageSprite, 6);
-    delay(500);
+    retrievePrice(&http, retrievedAppState.price);
+    preferences.putString("lastPrice", String(retrievedAppState.price));
+    delay(200);
 
-    char blockHeightBuf[8];
-    retrieveBlockHeight(&http, blockHeightBuf);
-    drawNumeric(blockHeightBuf, 40, 33, seven_segment_20x32, &InkPageSprite, 7);
-    delay(500);
+    retrieveBlockHeight(&http, retrievedAppState.chainTip);
+    preferences.putString("lastChainTip", String(retrievedAppState.chainTip));
+    delay(200);
 
-    char mempoolSizeBuf[12];
-    retrieveMempoolSize(&http, mempoolSizeBuf);
-    drawNumeric(mempoolSizeBuf, 3, 154, seven_segment_20x32, &InkPageSprite, 3);
-    delay(500);
+    retrieveMempoolSize(&http, retrievedAppState.mempoolSize);
+    preferences.putString("lastMempoolSize", String(retrievedAppState.mempoolSize));
+    delay(200);
 
-    char nextBlockFee[4];
-    retrieveNextBlockFee(&http, nextBlockFee);
-    drawNumeric(nextBlockFee, 105, 154, seven_segment_20x32, &InkPageSprite, 3);
+    retrieveNextBlockFee(&http, retrievedAppState.nextBlockFee);
+    preferences.putString("lastNextBlockFee", String(retrievedAppState.nextBlockFee));
 
     retrieveNTPTime();
     drawDateTime();
@@ -269,20 +287,21 @@ void retrieveMetrics() {
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
+
+  return retrievedAppState;
 }
 
-AppState get_app_state(Ink_Sprite *sprite) {
+AppState get_saved_app_state(Ink_Sprite *sprite) {
   AppState state = DefaultAppState;
 
   bool preferences_exist = false;
   bool *preferences_exist_ptr = &preferences_exist;
 
-  getPreference("lastUpdateDate", state.dateTime, 12, preferences_exist_ptr);
-  getPreference("lastBattery", state.battery, 2, preferences_exist_ptr);
-  getPreference("lastPrice", state.price, 8, preferences_exist_ptr);
-  getPreference("lastChainTip", state.chainTip, 10, preferences_exist_ptr);
-  getPreference("mempoolSize", state.mempoolSize, 5, preferences_exist_ptr);
-  getPreference("medianFee", state.medianFee, 5, preferences_exist_ptr);
+  getPreferenceString("lastPrice", state.price, "", 8, preferences_exist_ptr);
+  getPreferenceString("lastChainTip", state.chainTip, "", 10, preferences_exist_ptr);
+  getPreferenceString("lastMempoolSize", state.mempoolSize, "", 5, preferences_exist_ptr);
+  getPreferenceString("lastNextBlockFee", state.nextBlockFee, "", 5, preferences_exist_ptr);
+  // getPreferenceString("lastDate", state.date, "", 7, preferences_exist_ptr);
 
   if (preferences_exist)
     state.source = PREFERENCES;
@@ -302,16 +321,37 @@ void draw_static_images() {
   InkPageSprite.FillRect(101, 151, 1, 38, 0);
 }
 
-void draw_status_bar(const char *dateTime) {
+void draw_app_state(AppState appState) {
+  drawPrice(appState.price);
+  drawBlockHeight(appState.chainTip);
+  drawMempoolSize(appState.mempoolSize);
+  drawNextBlockFee(appState.nextBlockFee);
+  InkPageSprite.pushSprite();
+}
+
+void draw_status_bar() {
   displayBattery(&InkPageSprite);
 }
 
 void setup() {
-  initialize();
-  AppState state = get_app_state(&InkPageSprite);
-  draw_static_images();
-  retrieveMetrics();
+  bool fromSleep = initialize(); // Powered on from RTC timer (as opposed to power button)
+  if (fromSleep) {
+    AppState previousAppState = get_saved_app_state(&InkPageSprite);
+    draw_app_state(previousAppState);
+  }
+  else {
+    preferences.clear();
+    M5.M5Ink.clear();
+    delay(1000);
+    draw_static_images();
+  }
+
+  draw_status_bar();
+
+  AppState retrievedAppState = retrieveMetrics();
+  draw_app_state(retrievedAppState);
   InkPageSprite.pushSprite();
+
   M5.shutdown(600);
 }
 
