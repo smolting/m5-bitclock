@@ -265,19 +265,19 @@ AppState retrieveMetrics() {
     http.setReuse(true);
 
     retrievePrice(&http, retrievedAppState.price);
-    preferences.putString("lastPrice", String(retrievedAppState.price));
+    preferences.putString("price", String(retrievedAppState.price));
     delay(200);
 
     retrieveBlockHeight(&http, retrievedAppState.chainTip);
-    preferences.putString("lastChainTip", String(retrievedAppState.chainTip));
+    preferences.putString("chainTip", String(retrievedAppState.chainTip));
     delay(200);
 
     retrieveMempoolSize(&http, retrievedAppState.mempoolSize);
-    preferences.putString("lastMempoolSize", String(retrievedAppState.mempoolSize));
+    preferences.putString("mempoolSize", String(retrievedAppState.mempoolSize));
     delay(200);
 
     retrieveNextBlockFee(&http, retrievedAppState.nextBlockFee);
-    preferences.putString("lastNextBlockFee", String(retrievedAppState.nextBlockFee));
+    preferences.putString("nextBlockFee", String(retrievedAppState.nextBlockFee));
 
     retrieveNTPTime();
     drawDateTime();
@@ -297,10 +297,10 @@ AppState get_saved_app_state(Ink_Sprite *sprite) {
   bool preferences_exist = false;
   bool *preferences_exist_ptr = &preferences_exist;
 
-  getPreferenceString("lastPrice", state.price, "", 8, preferences_exist_ptr);
-  getPreferenceString("lastChainTip", state.chainTip, "", 10, preferences_exist_ptr);
-  getPreferenceString("lastMempoolSize", state.mempoolSize, "", 5, preferences_exist_ptr);
-  getPreferenceString("lastNextBlockFee", state.nextBlockFee, "", 5, preferences_exist_ptr);
+  getPreferenceString("price", state.price, "", 8, preferences_exist_ptr);
+  getPreferenceString("chainTip", state.chainTip, "", 10, preferences_exist_ptr);
+  getPreferenceString("mempoolSize", state.mempoolSize, "", 5, preferences_exist_ptr);
+  getPreferenceString("nextBlockFee", state.nextBlockFee, "", 5, preferences_exist_ptr);
   // getPreferenceString("lastDate", state.date, "", 7, preferences_exist_ptr);
 
   if (preferences_exist)
