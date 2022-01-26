@@ -22,44 +22,15 @@ struct AppStateStruct {
   char date[10];
   char time[10];
 
-  int64_t updateTime;
-} DefaultAppState = {NEW_STATE, "", "", "", "", "", "", 0};
+  int64_t lastNTPUpdate;
+  int64_t lastMetricsUpdate;
+  int64_t lastTimeUpdate;
+} DefaultAppState = {NEW_STATE, "", "", "", "", "", "", 0, 0, 0};
 
 typedef struct AppStateStruct AppState;
 
 Ink_Sprite InkPageSprite(&M5.M5Ink);
 Preferences preferences;
-
-void drawImageToSprite(int posX, int posY, image_t *imagePtr,
-                       Ink_Sprite *sprite) {
-  sprite->drawBuff(posX, posY, imagePtr->width, imagePtr->height,
-                   imagePtr->ptr);
-}
-
-void drawNumeric(const char price[], int posX, int posY, image_t *font,
-                 Ink_Sprite *sprite, int decimalPlaces) {
-  int pos = posX, rpad = 0, digits = 0, charIndex = 0;
-
-  while (price[charIndex] != '\0' && digits < decimalPlaces) {
-    int priceCharIndex = (price[charIndex] - '0');
-    image_t *fontCharacter;
-    bool isPeriod = false;
-
-    if (priceCharIndex >= 0 && priceCharIndex <= 9) {
-      fontCharacter = &(font[priceCharIndex]);
-      digits = digits + 1;
-    } else {
-      fontCharacter = &period_icon;
-      isPeriod = true;
-    }
-
-    pos = rpad + pos + fontCharacter->leftPadding;
-    drawImageToSprite(pos, isPeriod ? posY - 1 : posY, fontCharacter, sprite);
-    pos = pos + fontCharacter->width;
-    rpad = fontCharacter->rightPadding;
-    charIndex = charIndex + 1;
-  }
-}
 
 void convertRTCToCTm(RTC rtc, struct tm *ctime) {
   Serial.println("\nconvertRTCtoCTm");
@@ -90,6 +61,22 @@ void convertRTCToCTm(RTC rtc, struct tm *ctime) {
   Serial.print("\nexiting convertRTCToCTm");
 }
 
+void setRTCTime(tm *timeinfo) {
+  Serial.println("setRTCTime");
+  RTC_TimeTypeDef RTCtime;
+  RTC_DateTypeDef RTCDate;
+  RTCtime.Minutes = timeinfo->tm_min;
+  RTCtime.Seconds = timeinfo->tm_sec;
+  RTCtime.Hours = timeinfo->tm_hour;
+  RTCDate.Year = timeinfo->tm_year + 1900;
+  RTCDate.Month = timeinfo->tm_mon + 1;
+  RTCDate.Date = timeinfo->tm_mday;
+  RTCDate.WeekDay = timeinfo->tm_wday;
+
+  M5.rtc.SetTime(&RTCtime);
+  M5.rtc.SetDate(&RTCDate);
+}
+
 void formatRTC(RTC rtc, const char *dateFormatString, const char *timeFormatString, char *dateBuffer, char *timeBuffer, int dateBufferSize, int timeBufferSize) {
   Serial.print("\nformatRTC");
   struct tm ctime;
@@ -105,12 +92,6 @@ void formatRTC(RTC rtc, const char *dateFormatString, const char *timeFormatStri
   Serial.print("\nexit formatRTC");
 }
 
-void drawDateTime(char *displayDate, char *displayTime) {
-  Serial.printf("\ndrawDateTime: %s     %s", displayDate, displayTime);
-  InkPageSprite.drawString(5, 5, displayDate);
-  InkPageSprite.drawString(80, 5, displayTime);
-}
-
 float getBatteryVoltage() {
   analogSetPinAttenuation(35, ADC_11db);
   esp_adc_cal_characteristics_t *adc_chars =
@@ -122,21 +103,6 @@ float getBatteryVoltage() {
 
   return float(esp_adc_cal_raw_to_voltage(adcValue, adc_chars)) * 25.1 / 5.1 /
          1000;
-}
-
-void displayBattery(Ink_Sprite *sprite) {
-  float batteryVoltage1 = getBatteryVoltage();
-  char voltageDiagnostic[32];
-  sprite->drawString(
-    5, 5, "                                                         ");
-
-  int bp = (batteryVoltage1 < 3.2) ? 0 : (batteryVoltage1 - 3.2) * 100;
-  sprintf(voltageDiagnostic, "%.5g: %i", batteryVoltage1, bp);
-
-  uint8_t batteryIconIndex =
-    bp >= 71 ? 4 : bp >= 51 ? 3 : bp >= 31 ? 2 : bp >= 11 ? 1 : 0;
-
-  drawImageToSprite(165, 4, &battery[batteryIconIndex], sprite);
 }
 
 bool initialize() {
@@ -175,6 +141,130 @@ void getPreferenceLong64(const char *key, int64_t *value, int defaultValue, bool
   }
 }
 
+AppState get_saved_app_state(Ink_Sprite *sprite) {
+  Serial.println("get_saved_app_state");
+  AppState state = DefaultAppState;
+
+  bool preferences_exist = false;
+  bool *preferences_exist_ptr = &preferences_exist;
+
+  getPreferenceString("price", state.price, "", 8, preferences_exist_ptr);
+  getPreferenceString("chainTip", state.chainTip, "", 10, preferences_exist_ptr);
+  getPreferenceString("mempoolSize", state.mempoolSize, "", 5, preferences_exist_ptr);
+  getPreferenceString("nextBlockFee", state.nextBlockFee, "", 5, preferences_exist_ptr);
+  getPreferenceString("date", state.date, "", 10, preferences_exist_ptr);
+  getPreferenceString("time", state.time, "", 10, preferences_exist_ptr);
+  getPreferenceLong64("ntpMRU", &state.lastNTPUpdate, 0, preferences_exist_ptr);
+  getPreferenceLong64("timeMRU", &state.lastTimeUpdate, 0, preferences_exist_ptr);
+  getPreferenceLong64("metricsMRU", &state.lastMetricsUpdate, 0, preferences_exist_ptr);
+
+  if (preferences_exist)
+    state.source = PREFERENCES;
+
+  return state;
+}
+
+void drawImageToSprite(int posX, int posY, image_t *imagePtr,
+                       Ink_Sprite *sprite) {
+  sprite->drawBuff(posX, posY, imagePtr->width, imagePtr->height,
+                   imagePtr->ptr);
+}
+
+void drawNumeric(const char price[], int posX, int posY, image_t *font,
+                 Ink_Sprite *sprite, int decimalPlaces) {
+  int pos = posX, rpad = 0, digits = 0, charIndex = 0;
+
+  while (price[charIndex] != '\0' && digits < decimalPlaces) {
+    int priceCharIndex = (price[charIndex] - '0');
+    image_t *fontCharacter;
+    bool isPeriod = false;
+
+    if (priceCharIndex >= 0 && priceCharIndex <= 9) {
+      fontCharacter = &(font[priceCharIndex]);
+      digits = digits + 1;
+    } else {
+      fontCharacter = &period_icon;
+      isPeriod = true;
+    }
+
+    pos = rpad + pos + fontCharacter->leftPadding;
+    drawImageToSprite(pos, isPeriod ? posY - 1 : posY, fontCharacter, sprite);
+    pos = pos + fontCharacter->width;
+    rpad = fontCharacter->rightPadding;
+    charIndex = charIndex + 1;
+  }
+}
+
+void drawDateTime(char *displayDate, char *displayTime) {
+  Serial.printf("\ndrawDateTime: %s     %s", displayDate, displayTime);
+  InkPageSprite.drawString(5, 5, displayDate);
+  InkPageSprite.drawString(80, 5, displayTime);
+}
+
+void drawPrice(char* price) {
+  drawNumeric(price, 32, 87, seven_segment_26x42, &InkPageSprite, 6);
+}
+
+void drawBlockHeight(char* blockHeight) {
+  drawNumeric(blockHeight, 40, 33, seven_segment_20x32, &InkPageSprite, 7);
+}
+
+void drawMempoolSize(char* mempoolSize) {
+  drawNumeric(mempoolSize, 3, 154, seven_segment_20x32, &InkPageSprite, 3);
+}
+
+void drawNextBlockFee(char* nextBlockFee) {
+  drawNumeric(nextBlockFee, 105, 154, seven_segment_20x32, &InkPageSprite, 3);
+}
+
+void drawBattery(Ink_Sprite *sprite) {
+  float batteryVoltage1 = getBatteryVoltage();
+  char voltageDiagnostic[32];
+  sprite->drawString(
+    5, 5, "                                                         ");
+
+  int bp = (batteryVoltage1 < 3.2) ? 0 : (batteryVoltage1 - 3.2) * 100;
+  sprintf(voltageDiagnostic, "%.5g: %i", batteryVoltage1, bp);
+
+  uint8_t batteryIconIndex =
+    bp >= 71 ? 4 : bp >= 51 ? 3 : bp >= 31 ? 2 : bp >= 11 ? 1 : 0;
+
+  drawImageToSprite(165, 4, &battery[batteryIconIndex], sprite);
+}
+
+void draw_status_bar() {
+  drawBattery(&InkPageSprite);
+}
+
+void draw_static_images() {
+  drawImageToSprite(7, 35, &chaintip_icon, &InkPageSprite);
+  drawImageToSprite(7, 89, &dollar_sign_icon, &InkPageSprite);
+  drawImageToSprite(88, 156, &megabytes_icon, &InkPageSprite);
+  drawImageToSprite(184, 156, &sats_icon, &InkPageSprite);
+
+  InkPageSprite.FillRect(6, 24, 188, 1, 0);
+  InkPageSprite.FillRect(6, 77, 188, 1, 0);
+  InkPageSprite.FillRect(6, 143, 188, 1, 0);
+  InkPageSprite.FillRect(101, 151, 1, 38, 0);
+}
+
+void draw_app_state(AppState appState) {
+
+  Serial.println("\ndraw_app_state");
+  Serial.printf("\nLast Metrics Update: %ld", appState.lastMetricsUpdate);
+  Serial.printf("\nLast Time Update: %ld", appState.lastTimeUpdate);
+  if (appState.lastMetricsUpdate == appState.lastTimeUpdate) {
+    drawPrice(appState.price);
+    drawBlockHeight(appState.chainTip);
+    drawMempoolSize(appState.mempoolSize);
+    drawNextBlockFee(appState.nextBlockFee);
+  }
+
+  drawDateTime(appState.date, appState.time);
+
+  InkPageSprite.pushSprite();
+}
+
 void retrievePrice(HTTPClient *http, char *priceBuf) {
   Serial.print("\nRetrieve price");
   http->begin("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_last_updated_at=true");
@@ -201,22 +291,6 @@ void retrievePrice(HTTPClient *http, char *priceBuf) {
     Serial.println("Price retrieval failed. HTTP Status is < 0");
   }
   http->end();
-}
-
-void drawPrice(char* price) {
-  drawNumeric(price, 32, 87, seven_segment_26x42, &InkPageSprite, 6);
-}
-
-void drawBlockHeight(char* blockHeight) {
-  drawNumeric(blockHeight, 40, 33, seven_segment_20x32, &InkPageSprite, 7);
-}
-
-void drawMempoolSize(char* mempoolSize) {
-  drawNumeric(mempoolSize, 3, 154, seven_segment_20x32, &InkPageSprite, 3);
-}
-
-void drawNextBlockFee(char* nextBlockFee) {
-  drawNumeric(nextBlockFee, 105, 154, seven_segment_20x32, &InkPageSprite, 3);
 }
 
 void retrieveBlockHeight(HTTPClient *http, char *chainTipBuf) {
@@ -276,27 +350,6 @@ void retrieveNextBlockFee(HTTPClient *http, char *nextBlockFee) {
   http->end();
 }
 
-void retrieveTime(RTC rtc, char* date, int dateBufferSize, char* time, int timeBufferSize) {
-  Serial.print("\nretrieveTime");
-  formatRTC(M5.rtc, DATE_FORMAT, TIME_FORMAT, date, time, dateBufferSize, timeBufferSize);
-}
-
-void setRTCTime(tm *timeinfo) {
-  Serial.println("setRTCTime");
-  RTC_TimeTypeDef RTCtime;
-  RTC_DateTypeDef RTCDate;
-  RTCtime.Minutes = timeinfo->tm_min;
-  RTCtime.Seconds = timeinfo->tm_sec;
-  RTCtime.Hours = timeinfo->tm_hour;
-  RTCDate.Year = timeinfo->tm_year + 1900;
-  RTCDate.Month = timeinfo->tm_mon + 1;
-  RTCDate.Date = timeinfo->tm_mday;
-  RTCDate.WeekDay = timeinfo->tm_wday;
-
-  M5.rtc.SetTime(&RTCtime);
-  M5.rtc.SetDate(&RTCDate);
-}
-
 void retrieveNTPTime() {
   Serial.print("\nretrieveNTPTime");
   configTime(3600 * UTC_OFFSET, 3600, "us.pool.ntp.org");
@@ -308,124 +361,95 @@ void retrieveNTPTime() {
   setRTCTime(&timeinfo);
 }
 
-AppState retrieveMetrics(int64_t lastUpdateTime) {
+void retrieveRTCTime(RTC rtc, char* date, int dateBufferSize, char* time, int timeBufferSize) {
+  Serial.print("\nretrieveTime");
+  formatRTC(M5.rtc, DATE_FORMAT, TIME_FORMAT, date, time, dateBufferSize, timeBufferSize);
+}
+
+AppState retrieveMetrics(AppState previousAppState) {
 
   Serial.print("\nretrieveMetrics");
-  Serial.printf("\n lastUpdateTime: %s", String((long)lastUpdateTime));
+  Serial.printf("\n MRU - time: %s", String((long)previousAppState.lastTimeUpdate));
+  Serial.printf("\n MRU - NTP: %s", String((long)previousAppState.lastNTPUpdate));
+  Serial.printf("\n MRU - metrics: %s", String((long)previousAppState.lastMetricsUpdate));
 
   AppState retrievedAppState;
   HTTPClient http;
-  uint8_t wifi_run_status;
 
-  uint32_t connect_timeout = millis() + 10000;
-  WiFi.begin(WIFI_CONFIGURATION.ssid, WIFI_CONFIGURATION.password);
-  while ((WiFi.status() != WL_CONNECTED) && (millis() < connect_timeout)) {
-    Serial.println("WiFi connecting...");
-    delay(500);
-  }
-  Serial.println("WiFi Connected");
-  if (WiFi.status() == WL_CONNECTED) {
+  struct tm ctimeStruct;
+  convertRTCToCTm(M5.rtc, &ctimeStruct);
+  int64_t epoch = (int64_t)mktime(&ctimeStruct);
+  Serial.printf("\nepoch: %ld", epoch);
+  Serial.println("\nafter mktime");
 
-    http.setReuse(true);
+  bool shouldRetrieveMetrics = ((int64_t)epoch - previousAppState.lastMetricsUpdate) >= 600,
+       shouldRetrieveNTPTime = ((int64_t)epoch - previousAppState.lastNTPUpdate) >= 3600,
+       requiresWifi = shouldRetrieveMetrics && shouldRetrieveNTPTime;
 
-    retrievePrice(&http, retrievedAppState.price);
-    preferences.putString("price", String(retrievedAppState.price));
-    delay(200);
+  if (requiresWifi) {
 
-    retrieveBlockHeight(&http, retrievedAppState.chainTip);
-    preferences.putString("chainTip", String(retrievedAppState.chainTip));
-    delay(200);
+    uint32_t connect_timeout = millis() + 10000;
+    WiFi.begin(WIFI_CONFIGURATION.ssid, WIFI_CONFIGURATION.password);
+    while ((WiFi.status() != WL_CONNECTED) && (millis() < connect_timeout)) {
+      Serial.println("WiFi connecting...");
+      delay(500);
+    }
+    Serial.println("WiFi Connected");
 
-    retrieveMempoolSize(&http, retrievedAppState.mempoolSize);
-    preferences.putString("mempoolSize", String(retrievedAppState.mempoolSize));
-    delay(200);
+    if (WiFi.status() == WL_CONNECTED) {
 
-    retrieveNextBlockFee(&http, retrievedAppState.nextBlockFee);
-    preferences.putString("nextBlockFee", String(retrievedAppState.nextBlockFee));
+      if (shouldRetrieveMetrics) {
+        http.setReuse(true);
+        retrievePrice(&http, retrievedAppState.price);
+        preferences.putString("price", String(retrievedAppState.price));
+        delay(200);
 
-    http.end();
+        retrieveBlockHeight(&http, retrievedAppState.chainTip);
+        preferences.putString("chainTip", String(retrievedAppState.chainTip));
+        delay(200);
 
-    struct tm ctimeStruct;
-    convertRTCToCTm(M5.rtc, &ctimeStruct);
+        retrieveMempoolSize(&http, retrievedAppState.mempoolSize);
+        preferences.putString("mempoolSize", String(retrievedAppState.mempoolSize));
+        delay(200);
 
-    Serial.println("mktime");
-    time_t epoch = mktime(&ctimeStruct);
+        retrieveNextBlockFee(&http, retrievedAppState.nextBlockFee);
+        preferences.putString("nextBlockFee", String(retrievedAppState.nextBlockFee));
 
-    Serial.printf("\nepoch: %ld", epoch);
-    Serial.println("\nafter mktime");
-    if (((int64_t)epoch - lastUpdateTime) > 3600) {
-      Serial.println("Retrieving NTP time");
-      retrieveNTPTime();
+        http.end();
+        retrievedAppState.lastMetricsUpdate = epoch;
+        preferences.putLong64("metricsMRU", epoch);
+      }
+
+      if (shouldRetrieveNTPTime) {
+        Serial.println("Retrieving NTP time");
+        retrieveNTPTime();
+        retrievedAppState.lastNTPUpdate = epoch;
+        preferences.putLong64("ntpMRU", epoch);
+      }
+    }
+    else {
+      Serial.println("Wifi Connection failure!");
     }
 
-    retrieveTime(M5.rtc, retrievedAppState.date, 10, retrievedAppState.time, 10);
-    preferences.putString("date", String(retrievedAppState.date));
-    preferences.putString("time", String(retrievedAppState.time));
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
   }
 
-  else {
-    Serial.println("Wifi Connection failure!");
+  if (((int64_t)epoch - previousAppState.lastTimeUpdate) >= 60) {
+    retrieveRTCTime(M5.rtc, retrievedAppState.date, 10, retrievedAppState.time, 10);
+    retrievedAppState.lastTimeUpdate = epoch;
+    preferences.putString("time", retrievedAppState.time);
+    preferences.putString("date", retrievedAppState.date);
+    preferences.putLong64("timeMRU", epoch);
   }
-
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-
   return retrievedAppState;
-}
-
-AppState get_saved_app_state(Ink_Sprite *sprite) {
-  Serial.println("get_saved_app_state");
-  AppState state = DefaultAppState;
-
-  bool preferences_exist = false;
-  bool *preferences_exist_ptr = &preferences_exist;
-
-  getPreferenceString("price", state.price, "", 8, preferences_exist_ptr);
-  getPreferenceString("chainTip", state.chainTip, "", 10, preferences_exist_ptr);
-  getPreferenceString("mempoolSize", state.mempoolSize, "", 5, preferences_exist_ptr);
-  getPreferenceString("nextBlockFee", state.nextBlockFee, "", 5, preferences_exist_ptr);
-  getPreferenceString("date", state.date, "", 10, preferences_exist_ptr);
-  getPreferenceString("time", state.time, "", 10, preferences_exist_ptr);
-  getPreferenceLong64("updateTime", &state.updateTime, 0, preferences_exist_ptr);
-
-  if (preferences_exist)
-    state.source = PREFERENCES;
-
-  return state;
-}
-
-void draw_static_images() {
-  drawImageToSprite(7, 35, &chaintip_icon, &InkPageSprite);
-  drawImageToSprite(7, 89, &dollar_sign_icon, &InkPageSprite);
-  drawImageToSprite(88, 156, &megabytes_icon, &InkPageSprite);
-  drawImageToSprite(184, 156, &sats_icon, &InkPageSprite);
-
-  InkPageSprite.FillRect(6, 24, 188, 1, 0);
-  InkPageSprite.FillRect(6, 77, 188, 1, 0);
-  InkPageSprite.FillRect(6, 143, 188, 1, 0);
-  InkPageSprite.FillRect(101, 151, 1, 38, 0);
-}
-
-void draw_app_state(AppState appState) {
-  Serial.println("\ndraw_app_state");
-  drawPrice(appState.price);
-  drawBlockHeight(appState.chainTip);
-  drawMempoolSize(appState.mempoolSize);
-  drawNextBlockFee(appState.nextBlockFee);
-  drawDateTime(appState.date, appState.time);
-  InkPageSprite.pushSprite();
-}
-
-void draw_status_bar() {
-  displayBattery(&InkPageSprite);
 }
 
 void setup() {
   bool fromSleep = initialize(); // Powered on from RTC timer (as opposed to power button)
-  int64_t lastUpdateTime = 0;
+  AppState previousAppState = { .source = NEW_STATE };
   if (fromSleep) {
-    AppState previousAppState = get_saved_app_state(&InkPageSprite);
-    lastUpdateTime = previousAppState.updateTime;
+    previousAppState = get_saved_app_state(&InkPageSprite);
     draw_app_state(previousAppState);
   }
   else {
@@ -437,12 +461,11 @@ void setup() {
 
   draw_status_bar();
 
-  AppState retrievedAppState = retrieveMetrics(lastUpdateTime);
+  AppState retrievedAppState = retrieveMetrics(previousAppState);
 
   draw_app_state(retrievedAppState);
   InkPageSprite.pushSprite();
-
-  M5.shutdown(600);
+  M5.shutdown(60);
 }
 
 void loop() {
