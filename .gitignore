@@ -1,5 +1,4 @@
-.vscode/c_cpp_properties.json
-.vscode/arduino.json
+.vscode/*
 .clang-format
 **/*.orig
 create-release.sh
