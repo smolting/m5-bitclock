@@ -52,18 +52,23 @@ void convertRTCToCTm(RTC rtc, struct tm *ctime) {
   ctime->tm_hour = rtcTime.Hours;
 }
 
-void setRTCTime(tm *timeinfo) {
-  RTC_TimeTypeDef RTCtime;
-  RTC_DateTypeDef RTCDate;
-  RTCtime.Minutes = timeinfo->tm_min;
-  RTCtime.Seconds = timeinfo->tm_sec;
-  RTCtime.Hours = timeinfo->tm_hour;
-  RTCDate.Year = timeinfo->tm_year + 1900;
-  RTCDate.Month = timeinfo->tm_mon + 1;
-  RTCDate.Date = timeinfo->tm_mday;
-  RTCDate.WeekDay = timeinfo->tm_wday;
+void convertTmToRTCTimeDate(tm *timeinfo, RTC_TimeTypeDef* rtcTime, RTC_DateTypeDef* rtcDate) {
 
-  M5.rtc.SetTime(&RTCtime);
+  rtcTime->Minutes = timeinfo->tm_min;
+  rtcTime->Seconds = timeinfo->tm_sec;
+  rtcTime->Hours = timeinfo->tm_hour;
+  rtcDate->Year = timeinfo->tm_year + 1900;
+  rtcDate->Month = timeinfo->tm_mon + 1;
+  rtcDate->Date = timeinfo->tm_mday;
+  rtcDate->WeekDay = timeinfo->tm_wday;
+}
+
+void setRTCTime(tm *timeinfo) {
+
+  RTC_TimeTypeDef RTCTime;
+  RTC_DateTypeDef RTCDate;
+  convertTmToRTCTimeDate(timeinfo, &RTCTime, &RTCDate);
+  M5.rtc.SetTime(&RTCTime);
   M5.rtc.SetDate(&RTCDate);
 }
 
@@ -432,9 +437,12 @@ void setup() {
   }
   else {
     char timeBuffer[6];
-    tm lastMinuteTime = ctimeStruct;
-    lastMinuteTime.tm_min = ctimeStruct.tm_min - 1;
-    strftime(timeBuffer, 6, TIME_FORMAT, &lastMinuteTime);
+
+    const time_t lastMinuteTimeEpoch = mktime(&ctimeStruct) - 300;
+    tm *lastMinuteTime = localtime(&lastMinuteTimeEpoch);
+
+    // lastMinuteTime.tm_min = ctimeStruct.tm_min - 1;
+    strftime(timeBuffer, 6, TIME_FORMAT, lastMinuteTime);
     drawTime(timeBuffer);
     InkPageSprite.pushSprite();
     delay(500);
@@ -442,9 +450,25 @@ void setup() {
     drawTime(timeBuffer);
     InkPageSprite.pushSprite();
   }
-  RTC_TimeTypeDef currentTime;
-  M5.rtc.GetTime(&currentTime);
-  M5.shutdown(currentTime.Seconds < 30 ? 60 - currentTime.Seconds : 120 - currentTime.Seconds);
+
+  // RTC_TimeTypeDef currentTime;
+  // M5.rtc.GetTime(&currentTime);
+  tm shutdownCtm;
+  convertRTCToCTm(M5.rtc, &shutdownCtm);
+  time_t shutdownEpoch = mktime(&shutdownCtm);
+  const time_t shutdownEpochPadding = shutdownEpoch + (300 - (shutdownEpoch % 300));
+
+  tm *localTime = localtime(&shutdownEpochPadding);
+  RTC_DateTypeDef rtc_d;
+  RTC_TimeTypeDef rtc_t;
+  convertTmToRTCTimeDate(localTime, &rtc_t, &rtc_d);
+
+  char dateBuffer[10], timeBuffer[10];
+  strftime(dateBuffer, 10, DATE_FORMAT, localTime);
+  strftime(timeBuffer, 10, TIME_FORMAT, localTime);
+
+  M5.shutdown(rtc_d, rtc_t);
+  // M5.shutdown(currentTime.Seconds < 30 ? 60 - currentTime.Seconds : 120 - currentTime.Seconds);
 }
 
 void loop() {
